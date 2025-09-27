@@ -3,13 +3,13 @@ pipeline {
 
     environment {
         DOCKERHUB_CREDENTIALS = credentials('dockerhub-cred')  // crea credencial en Jenkins con tu usuario/pass de DockerHub
-        IMAGE_NAME = "jamescanos/php-simple-app"
+        IMAGE_NAME = "mlopezcamp/php-simple-app"
     }
 
     stages {
         stage('Checkout') {
             steps {
-                git branch: 'main', url: 'https://github.com/jamescanos/php-simple-app.git'
+                git branch: 'master', url: 'https://github.com/MLopezCamp/php-simple-app.git'
             }
         }
 
