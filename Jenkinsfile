@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        DOCKERHUB_CREDENTIALS = credentials('dockerhub-cred')  // Credencial en Jenkins (usuario/pass de DockerHub)
+        DOCKERHUB_CREDENTIALS = credentials('dockerhub-cred')
         IMAGE_NAME = "mlopezcamp/php-simple-app"
     }
 
@@ -17,16 +17,15 @@ pipeline {
         stage('Verificar cambios en el repositorio') {
             steps {
                 script {
-                    def previousCommit = currentBuild.rawBuild.getPreviousSuccessfulBuild()?.getEnvironment()?.get('GIT_COMMIT')
-                    def currentCommit = sh(script: 'git rev-parse HEAD', returnStdout: true).trim()
+                    def cambios = sh(script: "git diff --name-only HEAD~1 HEAD", returnStdout: true).trim()
 
-                    if (previousCommit && previousCommit == currentCommit) {
-                        echo "Sin cambios detectados desde el último build exitoso."
-                        currentBuild.result = 'SUCCESS'
-                        env.SKIP_BUILD = "true"
-                    } else {
-                        echo "Se detectaron nuevos cambios en el repositorio."
+                    if (cambios) {
+                        echo "Se detectaron cambios en el repositorio:"
+                        echo "${cambios}"
                         env.SKIP_BUILD = "false"
+                    } else {
+                        echo "Sin cambios detectados desde el último commit."
+                        env.SKIP_BUILD = "true"
                     }
                 }
             }
