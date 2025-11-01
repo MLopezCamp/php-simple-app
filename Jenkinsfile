@@ -28,7 +28,11 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
-                sh 'docker build -t $IMAGE_NAME:latest .'
+                sh '''
+                    echo "=== Construyendo imagen ==="
+                    docker build -t $IMAGE_NAME:$VERSION_TAG .
+                    docker tag $IMAGE_NAME:$VERSION_TAG $IMAGE_NAME:latest
+                '''
             }
         }
 
