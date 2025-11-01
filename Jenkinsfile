@@ -13,6 +13,19 @@ pipeline {
             }
         }
 
+        stage('Generate Tag') {
+            steps {
+                script {
+                    def GIT_COMMIT = sh(script: "git rev-parse --short HEAD", returnStdout: true).trim()
+                    def DATE_TAG = sh(script: "date +%Y%m%d-%H%M%S", returnStdout: true).trim()
+                    def VERSION_TAG = "${DATE_TAG}-${GIT_COMMIT}"
+                    env.VERSION_TAG = VERSION_TAG
+                    echo "Versión generada: ${VERSION_TAG}"
+                }
+            }
+        }
+
+
         stage('Build Docker Image') {
             steps {
                 sh 'docker build -t $IMAGE_NAME:latest .'
@@ -27,7 +40,11 @@ pipeline {
 
         stage('Push to DockerHub') {
             steps {
-                sh 'docker push $IMAGE_NAME:latest'
+                sh '''
+                    echo "=== Subiendo imagen a DockerHub ==="
+                    docker push $IMAGE_NAME:$VERSION_TAG
+                    docker push $IMAGE_NAME:latest
+                '''
             }
         }
     }
@@ -39,6 +56,9 @@ pipeline {
         }
         success {
             echo "Pipeline completado con éxito"
+            echo "Se subieron las siguientes versiones:"
+            echo "→ $IMAGE_NAME:latest"
+            echo "→ $IMAGE_NAME:$VERSION_TAG"
         }
         failure {
             echo "Pipeline falló"
