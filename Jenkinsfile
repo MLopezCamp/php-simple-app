@@ -14,19 +14,31 @@ pipeline {
             }
         }
 
-        stage('Verificar cambios en el repositorio') {
+        stage('Detect Changes') {
             steps {
                 script {
-                    def cambios = sh(script: "git diff --name-only HEAD~1 HEAD", returnStdout: true).trim()
+                    // Obtiene el último commit del repo local
+                    def currentCommit = sh(script: "git rev-parse HEAD", returnStdout: true).trim()
 
-                    if (cambios) {
-                        echo "Se detectaron cambios en el repositorio:"
-                        echo "${cambios}"
-                        env.SKIP_BUILD = "false"
+                    // Archivo para guardar el último commit desplegado
+                    def commitFile = "${env.WORKSPACE}/.last_commit"
+
+                    if (fileExists(commitFile)) {
+                        def lastCommit = readFile(commitFile).trim()
+                        if (currentCommit == lastCommit) {
+                            echo "No hay cambios nuevos desde el último despliegue (${lastCommit})."
+                            currentBuild.result = 'SUCCESS'
+                            currentBuild.displayName = "Sin cambios"
+                            skipRemainingStages()
+                        } else {
+                            echo "Cambios detectados. Último commit anterior: ${lastCommit}"
+                        }
                     } else {
-                        echo "Sin cambios detectados desde el último commit."
-                        env.SKIP_BUILD = "true"
+                        echo "Primer despliegue: no existe registro previo de commit."
                     }
+
+                    // Guarda el commit actual para la próxima ejecución
+                    writeFile file: commitFile, text: currentCommit
                 }
             }
         }
