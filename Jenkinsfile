@@ -4,36 +4,54 @@ pipeline {
     environment {
         DOCKERHUB_CREDENTIALS = credentials('dockerhub-cred')
         IMAGE_NAME = "mlopezcamp/php-simple-app"
-        LAST_COMMIT_FILE = ".last_commit"
+        REPO_URL = "https://github.com/MLopezCamp/php-simple-app.git"
+        TRACK_FILE = "${env.JENKINS_HOME}/last_commit_php_simple_app"
     }
 
     stages {
-
-        stage('Checkout') {
-            steps {
-                git branch: 'main', url: 'https://github.com/MLopezCamp/php-simple-app.git'
-            }
-        }
-
-        stage('Detect Changes') {
+        stage('Verificar cambios en repositorio remoto') {
             steps {
                 script {
-                    def currentCommit = sh(script: "git rev-parse HEAD", returnStdout: true).trim()
-                    def lastCommit = fileExists(LAST_COMMIT_FILE) ? readFile(LAST_COMMIT_FILE).trim() : ""
+                    echo "=== Verificando si el repositorio remoto tiene nuevos commits ==="
 
-                    if (currentCommit == lastCommit) {
-                        echo "No hay cambios nuevos desde el último despliegue (${currentCommit})."
-                        currentBuild.result = 'SUCCESS'
-                        return
+                    // Obtener el último commit remoto de GitHub
+                    def remoteCommit = sh(
+                        script: "git ls-remote ${REPO_URL} refs/heads/main | cut -f1",
+                        returnStdout: true
+                    ).trim()
+
+                    echo "Último commit remoto: ${remoteCommit}"
+
+                    // Leer el commit anterior almacenado (si existe)
+                    def previousCommit = ""
+                    if (fileExists(TRACK_FILE)) {
+                        previousCommit = readFile(TRACK_FILE).trim()
+                        echo "Último commit registrado: ${previousCommit}"
                     } else {
-                        echo "Se detectaron cambios. Último commit desplegado: ${lastCommit}, nuevo commit: ${currentCommit}"
-                        writeFile file: LAST_COMMIT_FILE, text: currentCommit
+                        echo "No existe registro previo, se considerará como primera ejecución."
+                    }
+
+                    // Comparar commits
+                    if (remoteCommit == previousCommit) {
+                        echo "Sin cambios detectados, no se subirá la imagen."
+                        currentBuild.result = 'SUCCESS'
+                        // Terminar pipeline anticipadamente
+                        error("Sin cambios detectados — pipeline detenido.")
+                    } else {
+                        echo "Cambios detectados, se procederá a construir y subir la nueva imagen."
+                        writeFile file: TRACK_FILE, text: remoteCommit
                     }
                 }
             }
         }
 
-        stage('Generate Tag') {
+        stage('Checkout') {
+            steps {
+                git branch: 'main', url: "${REPO_URL}"
+            }
+        }
+
+        stage('Generar tag') {
             steps {
                 script {
                     def GIT_COMMIT = sh(script: "git rev-parse --short HEAD", returnStdout: true).trim()
@@ -48,7 +66,7 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 sh '''
-                    echo "=== Construyendo imagen ==="
+                    echo "=== Construyendo imagen Docker ==="
                     docker build -t $IMAGE_NAME:$VERSION_TAG .
                     docker tag $IMAGE_NAME:$VERSION_TAG $IMAGE_NAME:latest
                 '''
@@ -79,12 +97,9 @@ pipeline {
         }
         success {
             echo "Pipeline completado con éxito"
-            echo "Se subieron las siguientes versiones (si hubo cambios):"
-            echo "→ $IMAGE_NAME:latest"
-            echo "→ $IMAGE_NAME:$VERSION_TAG"
         }
         failure {
-            echo "Pipeline falló"
+            echo "Pipeline finalizado sin subir imagen (posiblemente sin cambios)"
         }
     }
 }
